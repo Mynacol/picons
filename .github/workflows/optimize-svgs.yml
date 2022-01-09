@@ -1,0 +1,41 @@
+name: Auto-optimize all SVGs with scour
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'build-source/logos/*.svg'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'build-source/logos/*.svg'
+
+jobs:
+  optimize_svg:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt install -y --no-install-recommends --no-install-suggests git scour moreutils librsvg2-bin imagemagick
+      - name: Checkout the repository
+        uses: actions/checkout@v2
+      - id: files
+        name: Determine changed files
+        uses: jitterbit/get-changed-files@v1
+      - name: Optimize new SVGs
+        run: |
+          for f in ${{ steps.files.outputs.all }}; do
+            scour -i "$f" --renderer-workaround --strip-xml-prolog --remove-titles --remove-descriptions --remove-metadata --remove-descriptive-elements --enable-comment-stripping --disable-embed-rasters --enable-viewboxing --strip-xml-space --enable-id-stripping --shorten-ids | sponge "$f"
+          done
+      - name: Check for rendering errors
+        run: |
+          for f in ${{ steps.files.outputs.all }}; do
+            rsvg-convert "$f" | compare "$f" - /dev/null
+          done
+      - name: Commit changes
+        uses: EndBug/add-and-commit@v7
+        with:
+          default_author: github_actions
+          message: 'Optimize SVGs'
+          add: 'build-source/logos/*.svg'
